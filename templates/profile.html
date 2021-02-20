@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Профиль автора{% endblock %}
+{% block content %}
+
+        <div class="container">
+                <div class="row">
+
+                        {% include "includes/author_card.html" %}
+                        
+                        <div class="col-md-9">        
+                                <h1>Профиль автора {{ author }}</h1>
+                                <!-- Вывод ленты записей -->
+                                {% for post in page %}
+                                        {% include "includes/post_item.html" with post=post %}
+                                {% endfor %}
+                                <!-- Вывод паджинатора -->
+                                {% if page.has_other_pages %}
+                                        {% include "includes/paginator.html" with items=page paginator=paginator%}
+                                {% endif %}
+                        </div>
+                </div>
+        </div>
+
+{% endblock %}

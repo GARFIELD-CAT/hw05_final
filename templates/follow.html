@@ -1,0 +1,23 @@
+{% extends "base.html" %} 
+{% block title %}Последние обновления у избранных авторов{% endblock %}
+{% block content %}
+    {% load cache %}
+    {% cache 20 follow_page %}
+    <div class="container">
+
+        {% include "includes/menu.html" with follow=True %}
+        
+        <h1>Последние обновления у избранных авторов</h1>
+        <!-- Вывод ленты записей -->
+        {{ follow_authors }}
+        {% for post in page %}
+            {% include "includes/post_item.html" with post=post %}
+        {% endfor %}
+    </div>
+    {% endcache %}
+    <!-- Вывод паджинатора -->
+    {% if page.has_other_pages %}
+        {% include "includes/paginator.html" with items=page paginator=paginator%}
+    {% endif %}
+
+{% endblock %}
