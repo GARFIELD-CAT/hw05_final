@@ -20,8 +20,8 @@ from django.urls import path, include
 from django.contrib import admin
 
 
-handler404 = "posts.views.page_not_found" # noqa
-handler500 = "posts.views.server_error" # noqa
+handler404 = "posts.views.page_not_found"  # noqa
+handler500 = "posts.views.server_error"  # noqa
 
 urlpatterns = [
     path('admin/', admin.site.urls),
