@@ -10,7 +10,7 @@
                         <div class="col-md-9">
                                 <h1>Пост автора {{ author }}</h1>
                                 <!-- Пост --> 
-                                {% include "includes/post_item.html" %}
+                                {% include "includes/post_item.html" with post=post %}
                                 <!-- Комментарии --> 
                                 {% include "includes/comments.html" %}
                         </div>

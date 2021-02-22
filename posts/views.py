@@ -38,7 +38,6 @@ def group_posts(request, slug):
 @login_required
 def new_post(request):
     form = PostForm(request.POST or None)
-
     if request.method == "POST" and form.is_valid():
         post = form.save(commit=False)
         post.author = request.user
@@ -54,8 +53,11 @@ def profile(request, username):
     paginator = Paginator(post, 10)
     page_number = request.GET.get("page")
     page = paginator.get_page(page_number)
-    if Follow.objects.filter(user=request.user, author=author):
-        following = True
+    if request.user.is_authenticated:
+        if Follow.objects.filter(user=request.user, author=author):
+            following = True
+        else:
+            following = False
     else:
         following = False
     context = {
@@ -64,7 +66,7 @@ def profile(request, username):
         "author": author,
         "paginator": paginator,
         "display_add_comment": True,
-        "following": following,
+        "following": following
     }
     return render(request, "profile.html", context)
 
@@ -74,8 +76,11 @@ def post_view(request, username, post_id):
     author = post.author
     form = CommentForm(request.POST or None)
     comments = post.comments.all()
-    if Follow.objects.filter(user=request.user, author=author):
-        following = True
+    if request.user.is_authenticated:
+        if Follow.objects.filter(user=request.user, author=author):
+            following = True
+        else:
+            following = False
     else:
         following = False
     context = {
@@ -118,6 +123,7 @@ def server_error(request):
 
 
 # Обработчик создания нового комментария.
+@login_required
 def add_comment(request, username, post_id):
     form = CommentForm(request.POST or None)
     post = get_object_or_404(Post, id=post_id)
@@ -148,16 +154,20 @@ def follow_index(request):
 # Подписка на автора.
 @login_required
 def profile_follow(request, username):
-    author = get_object_or_404(User, username=username)
-    if author is not None:
-        Follow.objects.get_or_create(author=author, user=request.user)
+    if username != request.user.username:
+        author = get_object_or_404(User, username=username)
+        if author is not None:
+            Follow.objects.get_or_create(author=author, user=request.user)
     return redirect("profile", username)
 
 
 # Отписка от автора.
 @login_required
 def profile_unfollow(request, username):
-    follow = Follow.objects.get(author__username=username, user=request.user)
-    if follow is not None:
-        follow.delete()
+    if username != request.user.username:
+        follow = Follow.objects.get(
+            author__username=username, user=request.user
+        )
+        if follow is not None:
+            follow.delete()
     return redirect("profile", username)

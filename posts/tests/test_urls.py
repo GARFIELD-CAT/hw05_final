@@ -44,7 +44,8 @@ class PostsURLTests(TestCase):
             "group.html": f"/group/{PostsURLTests.group.slug}/",
             "profile.html": f"/{PostsURLTests.author}/",
             "post.html": f"/{PostsURLTests.author}/{PostsURLTests.post.id}/",
-            "misc/404.html": "page-not-found"
+            "misc/404.html": "page-not-found",
+            "follow.html": "/follow/",
         }
 
     # Проверяем доступность страниц для неавторизованного пользователя.
@@ -107,6 +108,19 @@ class PostsURLTests(TestCase):
             response,
             f"/auth/login/?next="
             f"/{PostsURLTests.author}/{PostsURLTests.post.id}/edit/"
+        )
+
+    def test_add_comment_redirect_anonymous(self):
+        """Страница /<username>/<post_id>/comment перенаправит
+        неавторизованного пользователя на страницу логина.
+        """
+        response = self.guest_client.get(
+            f"/{PostsURLTests.author}/{PostsURLTests.post.id}/comment/"
+        )
+        self.assertRedirects(
+            response,
+            f"/auth/login/?next="
+            f"/{PostsURLTests.author}/{PostsURLTests.post.id}/comment/"
         )
 
     # Проверяем редиректы для не автора поста.

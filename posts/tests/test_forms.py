@@ -6,8 +6,10 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, override_settings, TestCase
 from django.urls import reverse
 
-from posts.models import Group, Post
+from posts.models import Comment, Group, Post
 from yatube.settings import MEDIA_ROOT, BASE_DIR
+
+User = get_user_model()
 
 # Создаем временную папку для медиа-файлов.
 MEDIA_ROOT = tempfile.mkdtemp(dir=BASE_DIR)
@@ -33,7 +35,6 @@ class PostCreateFormTests(TestCase):
             content=small_gif,
             content_type="image/gif"
         )
-        User = get_user_model()
         cls.author = User.objects.create(username="TestAuthor")
         cls.group = Group.objects.create(
             title="Тестовая группа",
@@ -53,7 +54,6 @@ class PostCreateFormTests(TestCase):
 
     def setUp(self):
         # Создаем авторизованного пользователя.
-        User = get_user_model()
         self.user = User.objects.create(username="TestUser")
         self.authorized_client = Client()
         self.authorized_client.force_login(self.user)
@@ -108,4 +108,56 @@ class PostCreateFormTests(TestCase):
         # Поста с текстом до редактирования нет.
         self.assertFalse(
             Post.objects.filter(text=post.text).exists()
+        )
+
+
+class CommentCreateFormTests(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.author = User.objects.create(username="TestAuthor")
+        cls.post = Post.objects.create(
+            text="Тестовый пост",
+            author=CommentCreateFormTests.author,
+        )
+
+    def setUp(self):
+        self.user = User.objects.create(username="TestUser")
+        self.authorized_client = Client()
+        self.authorized_client.force_login(self.user)
+
+    def test_create_comment(self):
+        """Валидная форма создает новый коммент в базе"""
+        comment_count = Comment.objects.count()
+        form_data = {
+            "text": "Тестовый комментарий"
+        }
+        # Отправляем POST-запрос.
+        response = self.authorized_client.post(
+            reverse(
+                "add_comment",
+                kwargs={
+                    "username": CommentCreateFormTests.post.author,
+                    "post_id": CommentCreateFormTests.post.id
+                }
+            ),
+            data=form_data,
+            follow=True
+        )
+        # Проверяем, сработал ли редирект.
+        self.assertRedirects(
+            response,
+            reverse(
+                "post",
+                kwargs={
+                    "username": CommentCreateFormTests.post.author,
+                    "post_id": CommentCreateFormTests.post.id
+                }
+            )
+        )
+        # Проверяем, увеличилось ли число комментариев.
+        self.assertEqual(Comment.objects.count(), comment_count + 1)
+        # Проверяем, что создался комментарий с нашим текстом.
+        self.assertTrue(
+            Comment.objects.filter(text=form_data["text"]).exists()
         )
