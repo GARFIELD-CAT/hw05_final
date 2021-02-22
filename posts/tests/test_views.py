@@ -11,6 +11,7 @@ from posts.models import Group, Post
 from yatube.settings import MEDIA_ROOT, BASE_DIR
 
 User = get_user_model()
+
 # Создаем временную папку для медиа-файлов.
 MEDIA_ROOT = tempfile.mkdtemp(dir=BASE_DIR)
 
@@ -70,6 +71,13 @@ class PostsPagesTest(TestCase):
         # Создаем клиент автора поста.
         self.authorized_client_author = Client()
         self.authorized_client_author.force_login(PostsPagesTest.post.author)
+        # Создаем авторизованный клиент для пользователя,
+        # который не подписан на автора.
+        self.user_not_follower = User.objects.create(
+            username="TestUserNotFollower"
+        )
+        self.authorized_client_not_follower = Client()
+        self.authorized_client_not_follower.force_login(self.user_not_follower)
         # Список ожидаемых html-шаблонов и их name.
         self.templates_pages_names = {
             "index.html": reverse("index"),
@@ -260,6 +268,54 @@ class PostsPagesTest(TestCase):
         # Сравниваем контент двух запросов.
         # Если кэш работает, то он не должен измениться.
         self.assertEqual(cached_response_content, response.content)
+
+    def test_authorized_user_can_add_or_remove_to_authors_from_subscribe(self):
+        """Авторизованный пользователь может подписываться на других
+        пользователей и удалять их из подписок.
+        """
+        # Создаем подписку на автора.
+        self.authorized_client.get(
+            reverse(
+                "profile_follow",
+                kwargs={"username": PostsPagesTest.post.author}
+            )
+        )
+        # Считаем количество подписчиков у автора. Должен быть один.
+        author = User.objects.get(username=PostsPagesTest.post.author)
+        following_count = author.following.count()
+        self.assertEqual(following_count, 1)
+        # Отписываемся от автора.
+        self.authorized_client.get(
+            reverse(
+                "profile_unfollow",
+                kwargs={"username": PostsPagesTest.post.author}
+            )
+        )
+        # Считаем количество подписчиков у автора. Должно быть ноль.
+        following_count = author.following.count()
+        self.assertEqual(following_count, 0)
+
+    def test_new_post_show_on_follow_page(self):
+        """Новый пост автора показывается на странице подписок у подписчика."""
+        # Создаем подписку на автора.
+        self.authorized_client.get(
+            reverse(
+                "profile_follow",
+                kwargs={"username": PostsPagesTest.post.author}
+            )
+        )
+        response = self.authorized_client.get(reverse("follow_index"))
+        self.assertEqual(
+            response.context.get("page")[0].text, PostsPagesTest.post.text
+        )
+
+    def test_new_post_not_showed_on_follow_page_of_an_unsigned_user(self):
+        """Новый пост автора не показывается на странице подписок у
+        неподписанного пользователя.
+        """
+        response = self.authorized_client.get(reverse("follow_index"))
+        with self.assertRaisesMessage(IndexError, "list index out of range"):
+            response.context.get("page")[0].text, PostsPagesTest.post.text
 
 
 class PaginatorViewsTest(TestCase):
