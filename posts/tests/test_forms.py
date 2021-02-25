@@ -157,7 +157,10 @@ class CommentCreateFormTests(TestCase):
         )
         # Проверяем, увеличилось ли число комментариев.
         self.assertEqual(Comment.objects.count(), comment_count + 1)
-        # Проверяем, что создался комментарий с нашим текстом.
+        # Проверяем, что у поста создался комментарий с нашим текстом.
         self.assertTrue(
-            Comment.objects.filter(text=form_data["text"]).exists()
+            Comment.objects.filter(
+                text=form_data["text"],
+                post=CommentCreateFormTests.post.id
+            ).exists()
         )

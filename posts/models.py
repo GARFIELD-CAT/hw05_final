@@ -113,3 +113,11 @@ class Follow(models.Model):
         verbose_name="автор",
         help_text="Выберите автора для подписки"
     )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "author"],
+                name="unique_subscriber"
+            )
+        ]

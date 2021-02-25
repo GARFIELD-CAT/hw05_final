@@ -7,7 +7,7 @@ from django.test import Client, override_settings, TestCase
 from django.urls import reverse
 from django import forms
 
-from posts.models import Group, Post
+from posts.models import Follow, Group, Post
 from yatube.settings import MEDIA_ROOT, BASE_DIR
 
 User = get_user_model()
@@ -71,13 +71,14 @@ class PostsPagesTest(TestCase):
         # Создаем клиент автора поста.
         self.authorized_client_author = Client()
         self.authorized_client_author.force_login(PostsPagesTest.post.author)
-        # Создаем авторизованный клиент для пользователя,
-        # который не подписан на автора.
+        # Создаем клиент не подписчика.
         self.user_not_follower = User.objects.create(
             username="TestUserNotFollower"
         )
         self.authorized_client_not_follower = Client()
-        self.authorized_client_not_follower.force_login(self.user_not_follower)
+        self.authorized_client_not_follower.force_login(
+            self.user_not_follower
+        )
         # Список ожидаемых html-шаблонов и их name.
         self.templates_pages_names = {
             "index.html": reverse("index"),
@@ -96,6 +97,11 @@ class PostsPagesTest(TestCase):
                 }
             ),
         }
+        # Создаем подписку на автора.
+        Follow.objects.create(
+            user=self.user,
+            author=PostsPagesTest.post.author
+        )
 
     # Проверяем корректность вызовов шаблонов.
     def test_pages_uses_correct_template(self):
@@ -174,9 +180,12 @@ class PostsPagesTest(TestCase):
         profile_author = response.context.get("author").username
         profile_post_text_0 = response.context.get("page")[0].text
         profile_post_image_0 = response.context.get("page")[0].image
+        profile_following = response.context.get("following")
         self.assertEqual(profile_author, PostsPagesTest.post.author.username)
         self.assertEqual(profile_post_text_0, PostsPagesTest.post.text)
         self.assertEqual(profile_post_image_0, PostsPagesTest.post.image)
+        # True так как authorized_client подписан на автора поста.
+        self.assertEqual(profile_following, True)
 
     def test_post_page_show_correct_context(self):
         """Шаблон для post сформирован с правильным контекстом."""
@@ -192,9 +201,12 @@ class PostsPagesTest(TestCase):
         post_author = response.context.get("author").username
         post_text = response.context.get("post").text
         post_image = response.context.get("post").image
+        post_following = response.context.get("following")
         self.assertEqual(post_author, PostsPagesTest.post.author.username)
         self.assertEqual(post_text, PostsPagesTest.post.text)
         self.assertEqual(post_image, PostsPagesTest.post.image)
+        # True так как authorized_client подписан на автора поста.
+        self.assertEqual(post_following, True)
 
     def test_post_edit_page_show_correct_context(self):
         """Шаблон для post_edit сформирован с правильным контекстом."""
@@ -269,21 +281,14 @@ class PostsPagesTest(TestCase):
         # Если кэш работает, то он не должен измениться.
         self.assertEqual(cached_response_content, response.content)
 
-    def test_authorized_user_can_add_or_remove_to_authors_from_subscribe(self):
-        """Авторизованный пользователь может подписываться на других
-        пользователей и удалять их из подписок.
+    # Проверяем функционал подписок.
+    def test_authorized_user_can_remove_to_authors_from_subscribe(self):
+        """Авторизованный пользователь может удалять других пользователей
+        из своих подписок.
         """
-        # Создаем подписку на автора.
-        self.authorized_client.get(
-            reverse(
-                "profile_follow",
-                kwargs={"username": PostsPagesTest.post.author}
-            )
-        )
-        # Считаем количество подписчиков у автора. Должен быть один.
-        author = User.objects.get(username=PostsPagesTest.post.author)
-        following_count = author.following.count()
-        self.assertEqual(following_count, 1)
+        # Считаем количество подписок у пользователя.
+        user = self.user
+        follower_count = user.follower.count()
         # Отписываемся от автора.
         self.authorized_client.get(
             reverse(
@@ -291,19 +296,28 @@ class PostsPagesTest(TestCase):
                 kwargs={"username": PostsPagesTest.post.author}
             )
         )
-        # Считаем количество подписчиков у автора. Должно быть ноль.
-        following_count = author.following.count()
-        self.assertEqual(following_count, 0)
+        # Сравниваем количество подписок у пользователя.
+        self.assertEqual(user.follower.count(), follower_count - 1)
 
-    def test_new_post_show_on_follow_page(self):
-        """Новый пост автора показывается на странице подписок у подписчика."""
-        # Создаем подписку на автора.
-        self.authorized_client.get(
+    def test_authorized_user_can_add_to_authors_in_subscribe(self):
+        """Авторизованный пользователь может подписываться на других
+        пользователей.
+        """
+        # Считаем количество подписок у пользователя.
+        user = self.user_not_follower
+        follower_count = user.follower.count()
+        # Подписываемся на автора.
+        self.authorized_client_not_follower.get(
             reverse(
                 "profile_follow",
                 kwargs={"username": PostsPagesTest.post.author}
             )
         )
+        # Сравниваем количество подписок у пользователя.
+        self.assertEqual(user.follower.count(), follower_count + 1)
+
+    def test_new_post_show_on_follow_page(self):
+        """Новый пост автора показывается на странице подписок у подписчика."""
         response = self.authorized_client.get(reverse("follow_index"))
         self.assertEqual(
             response.context.get("page")[0].text, PostsPagesTest.post.text
@@ -313,7 +327,9 @@ class PostsPagesTest(TestCase):
         """Новый пост автора не показывается на странице подписок у
         неподписанного пользователя.
         """
-        response = self.authorized_client.get(reverse("follow_index"))
+        response = self.authorized_client_not_follower.get(
+            reverse("follow_index")
+        )
         with self.assertRaisesMessage(IndexError, "list index out of range"):
             response.context.get("page")[0].text, PostsPagesTest.post.text
 

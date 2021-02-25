@@ -62,10 +62,8 @@ def profile(request, username):
         following = False
     context = {
         "page": page,
-        "post": post,
         "author": author,
         "paginator": paginator,
-        "display_add_comment": True,
         "following": following
     }
     return render(request, "profile.html", context)
@@ -76,8 +74,10 @@ def post_view(request, username, post_id):
     author = post.author
     form = CommentForm(request.POST or None)
     comments = post.comments.all()
+    # Данная отдельная проверка нужна, чтобы не падал test_post_view_get с
+    # ошибкой TypeError: 'AnonymousUser' object is not iterable.
     if request.user.is_authenticated:
-        if Follow.objects.filter(user=request.user, author=author):
+        if Follow.objects.filter(user=request.user, author=author).exists():
             following = True
         else:
             following = False
@@ -165,9 +165,7 @@ def profile_follow(request, username):
 @login_required
 def profile_unfollow(request, username):
     if username != request.user.username:
-        follow = Follow.objects.get(
+        Follow.objects.filter(
             author__username=username, user=request.user
-        )
-        if follow is not None:
-            follow.delete()
+        ).delete()
     return redirect("profile", username)
