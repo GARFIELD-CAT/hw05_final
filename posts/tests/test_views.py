@@ -56,6 +56,11 @@ class PostsPagesTest(TestCase):
             "group": forms.fields.ChoiceField,
             "image": forms.fields.ImageField
         }
+        cls.url_names = [
+            reverse("index"),
+            reverse("group", kwargs={"slug": PostsPagesTest.group.slug}),
+            reverse("profile", kwargs={"username": PostsPagesTest.post.author})
+        ]
 
     @classmethod
     def tearDownClass(cls):
@@ -140,15 +145,19 @@ class PostsPagesTest(TestCase):
                 form_field = response.context.get("form").fields.get(value)
                 self.assertIsInstance(form_field, expected)
 
-    def test_index_page_show_correct_contex(self):
-        """Шаблон для index сформирован с правильным контекстом."""
-        response = self.authorized_client.get(reverse("index"))
-        index_text_0 = response.context.get("page")[0].text
-        index_author_0 = response.context.get("page")[0].author.username
-        index_image_0 = response.context.get("page")[0].image
-        self.assertEqual(index_text_0, PostsPagesTest.post.text)
-        self.assertEqual(index_author_0, PostsPagesTest.post.author.username)
-        self.assertEqual(index_image_0, PostsPagesTest.post.image)
+    def test_page_show_correct_contex(self):
+        """Шаблон page сформирован с правильным контекстом для страниц
+        index, group и profile.
+         """
+        for name_url in PostsPagesTest.url_names:
+            with self.subTest(name_url=name_url):
+                response = self.authorized_client.get(name_url)
+                text_0 = response.context.get("page")[0].text
+                author_0 = response.context.get("page")[0].author.username
+                image_0 = response.context.get("page")[0].image
+                self.assertEqual(text_0, PostsPagesTest.post.text)
+                self.assertEqual(author_0, PostsPagesTest.post.author.username)
+                self.assertEqual(image_0, PostsPagesTest.post.image)
 
     def test_group_page_show_correct_contex(self):
         """Шаблон для group сформирован с правильным контекстом."""
@@ -159,14 +168,6 @@ class PostsPagesTest(TestCase):
         )
         group_description = response.context.get("group").description
         group_title = response.context.get("group").title
-        group_post_text_0 = response.context.get("page")[0].text
-        group_post_author_0 = response.context.get("page")[0].author.username
-        group_post_image_0 = response.context.get("page")[0].image
-        self.assertEqual(group_post_text_0, PostsPagesTest.post.text)
-        self.assertEqual(
-            group_post_author_0, PostsPagesTest.post.author.username
-        )
-        self.assertEqual(group_post_image_0, PostsPagesTest.post.image)
         self.assertEqual(group_description, PostsPagesTest.group.description)
         self.assertEqual(group_title, PostsPagesTest.group.title)
 
@@ -178,12 +179,8 @@ class PostsPagesTest(TestCase):
             )
         )
         profile_author = response.context.get("author").username
-        profile_post_text_0 = response.context.get("page")[0].text
-        profile_post_image_0 = response.context.get("page")[0].image
         profile_following = response.context.get("following")
         self.assertEqual(profile_author, PostsPagesTest.post.author.username)
-        self.assertEqual(profile_post_text_0, PostsPagesTest.post.text)
-        self.assertEqual(profile_post_image_0, PostsPagesTest.post.image)
         # True так как authorized_client подписан на автора поста.
         self.assertEqual(profile_following, True)
 
