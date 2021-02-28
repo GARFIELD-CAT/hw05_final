@@ -43,7 +43,6 @@ def new_post(request):
         post.author = request.user
         form.save()
         return redirect("index")
-
     return render(request, "new_post.html", {"form": form})
 
 
@@ -53,13 +52,9 @@ def profile(request, username):
     paginator = Paginator(post, 10)
     page_number = request.GET.get("page")
     page = paginator.get_page(page_number)
-    if request.user.is_authenticated:
-        if Follow.objects.filter(user=request.user, author=author):
-            following = True
-        else:
-            following = False
-    else:
-        following = False
+    following = (request.user.is_authenticated and (
+        Follow.objects.filter(user=request.user, author=author).exists())
+    )
     context = {
         "page": page,
         "author": author,
@@ -74,15 +69,9 @@ def post_view(request, username, post_id):
     author = post.author
     form = CommentForm(request.POST or None)
     comments = post.comments.all()
-    # Данная отдельная проверка нужна, чтобы не падал test_post_view_get с
-    # ошибкой TypeError: 'AnonymousUser' object is not iterable.
-    if request.user.is_authenticated:
-        if Follow.objects.filter(user=request.user, author=author).exists():
-            following = True
-        else:
-            following = False
-    else:
-        following = False
+    following = (request.user.is_authenticated and (
+        Follow.objects.filter(user=request.user, author=author).exists())
+    )
     context = {
         "post": post,
         "author": author,
@@ -95,15 +84,15 @@ def post_view(request, username, post_id):
 
 @login_required
 def post_edit(request, username, post_id):
+    # Редактировать пост имеет право только его автор.
+    if request.user.username != username:
+        return redirect("post", username, post_id)
     post = get_object_or_404(Post, id=post_id, author__username=username)
-    if post.author == request.user:
-        form = PostForm(
-            request.POST or None, instance=post, files=request.FILES or None
-        )
-        if request.method == "POST" and form.is_valid():
-            form.save()
-            return redirect("post", username, post_id)
-    else:
+    form = PostForm(
+        request.POST or None, instance=post, files=request.FILES or None
+    )
+    if request.method == "POST" and form.is_valid():
+        form.save()
         return redirect("post", username, post_id)
     return render(request, "new_post.html", {"form": form, "post": post})
 
@@ -132,9 +121,7 @@ def add_comment(request, username, post_id):
         comment.author = request.user
         comment.post = post
         form.save()
-        return redirect("post", username, post_id)
-    else:
-        return redirect("post", username, post_id)
+    return redirect("post", username, post_id)
 
 
 # Подписки пользователя на авторов.
@@ -156,8 +143,7 @@ def follow_index(request):
 def profile_follow(request, username):
     if username != request.user.username:
         author = get_object_or_404(User, username=username)
-        if author is not None:
-            Follow.objects.get_or_create(author=author, user=request.user)
+        Follow.objects.get_or_create(author=author, user=request.user)
     return redirect("profile", username)
 
 
